@@ -1,114 +1,182 @@
 # -*- coding: utf-8 -*-
 
+from zope.interface import Interface
+from zope.schema import ValidationError
+from zope.schema import (
+    Datetime, Int, ASCIILine, TextLine, Text, Choice, List, Set)
 
-class IClientGetter(Interface):
-    """Register a function as the client getter.
+
+class InvalidSizeError(ValidationError):
+    __doc__ = u'Please respect the specified field size.'
+
+
+def sized(max):
+    def size_constraint(value):
+        if len(value) <= max:
+            return True
+        raise InvalidSizeError
+    return size_constraint
+
+
+class IUser(Interface):
+
+    id = ASCIILine(
+        title=u'Unique identifier',
+        constraint=sized(128),
+        required=True)
+
+    common_name = TextLine(
+        title=u'Full name',
+        constraint=sized(128),
+        required=True)
+
+    function = TextLine(
+        title=u'Job function or title',
+        constraint=sized(128),
+        required=True)
+
+
+class IClient(Interface):
     
-    The function accepts one parameter `client_id`, and it returns
-    a client object with at least these information:
+    id = ASCIILine(
+        title=u'Unique identifier',
+        constraint=sized(40),
+        required=True)
 
-      - client_id: A random string
-      - client_secret: A random string
-      - client_type: A string represents if it is `confidential`
-      - redirect_uris: A list of redirect uris
-      - default_redirect_uri: One of the redirect uris
-      - default_scopes: Default scopes of the client
+    name = TextLine(
+        title=u'Name',
+        constraint=sized(40),
+        required=True)
 
-    The client may contain more information, which is suggested:
+    type = Choice(
+        title=u'Client type',
+        values=('public', 'confidential'),
+        default='public',
+        required=True)
 
-      - allowed_grant_types: A list of grant types
-      - allowed_response_types: A list of response types
-      - validate_scopes: A function to validate scopes
-    """
-    def __call__(client_id):
+    secret = ASCIILine(
+        title=u'Secret',
+        constraint=sized(55),
+        required=True)
+
+    user_id = ASCIILine(
+        title=u'Linked user',
+        constraint=sized(128),
+        required=False)
+
+    redirect_uris = List(
+        title=u"Redirection URIs",
+        value_type=ASCIILine(constraint=sized(255)),
+        required=True)
+
+    default_scopes = Set(
+        title=u"Allowed scopes",
+        value_type=ASCIILine(),
+        required=True)
+
+
+class IToken(Interface):
+
+    type = Choice(
+        title=u'Client type',
+        values=('Bearer', 'MAC'),
+        default='Bearer',
+        required=True)
+
+    access_token = ASCIILine(
+        title=u'Linked user',
+        constraint=sized(255),
+        required=True)
+        
+    refresh_token = ASCIILine(
+        title=u'Refresh token',
+        constraint=sized(255),
+        required=True)
+
+    client_id = ASCIILine(
+        title=u'Client',
+        constraint=sized(40),
+        required=True)
+        
+    user_id = ASCIILine(
+        title=u'User',
+        constraint=sized(128),
+        required=False)
+
+    expires = Datetime(
+        title=u'Expiration date',
+        required=True)
+        
+    scopes = Set(
+        title=u"Allowed scopes",
+        value_type=ASCIILine(),
+        required=True)
+
+        
+class IGrant(Interface):
+
+    client_id = ASCIILine(
+        title=u'Client',
+        constraint=sized(40),
+        required=True)
+
+    user_id = ASCIILine(
+        title=u'User',
+        constraint=sized(128),
+        required=False)
+        
+    redirect_uri = ASCIILine(
+        title=u"Redirection URIs",
+        constraint=sized(255),
+        required=True)
+
+    code = ASCIILine(
+        title=u'Code',
+        constraint=sized(255),
+        required=True)
+
+    expires = Datetime(
+        title=u'Expiration date',
+        required=True)
+        
+    scopes = Set(
+        title=u"Allowed scopes",
+        value_type=ASCIILine(),
+        required=False)
+        
+
+class IStorage(Interface):
+
+    def __getitem__(uid):
         pass
-    
+
+    def get(*args, **kwargs):
+        pass
+
+    def set(item):
+        pass
+
+    def __iter__():
+        pass
+
+    def __contains__(key):
+        pass
+
+    def find(**kwargs):
+        pass
 
 
-class IUserGetter(Interface):
-    """Register a function as the user getter.
-
-    This decorator is only required for **password credential**
-    authorization::
-
-    parameter `request` is an OAuthlib Request object.
-    Maybe you will need it somewhere
-    """
-    def __call__(username, password, client, request, *args, **kwargs):
-       pass
+class IUsers(IStorage):
+    pass
 
 
-class ITokenGetter(Interface):
-    """Register a function as the token getter.
-
-    The function accepts an `access_token` or `refresh_token` parameters,
-    and it returns a token object with at least these information:
-    
-    - access_token: A string token
-    - refresh_token: A string token
-    - client_id: ID of the client
-    - scopes: A list of scopes
-    - expires: A `datetime.datetime` object
-    - user: The user object
-
-    The implementation of tokengetter should accepts two parameters,
-    one is access_token the other is refresh_token::
-
-    @oauth.tokengetter
-    def bearer_token(access_token=None, refresh_token=None):
-    if access_token:
-    return get_token(access_token=access_token)
-    if refresh_token:
-    return get_token(refresh_token=refresh_token)
-    return None
-    """
-
-    
-class ITokenSetter(Interface):
-    """Register a function to save the bearer token.
-
-    The setter accepts two parameters at least, one is token,
-    the other is request::
-    
-    @oauth.tokensetter
-    def set_token(token, request, *args, **kwargs):
-    save_token(token, request.client, request.user)
-    
-    The parameter token is a dict, that looks like::
-    
-    {
-    u'access_token': u'6JwgO77PApxsFCU8Quz0pnL9s23016',
-    u'token_type': u'Bearer',
-    u'expires_in': 3600,
-    u'scope': u'email address'
-    }
-    
-    The request is an object, that contains an user object and a
-    client object.
-    """
+class IGrants(IStorage):
+    pass
 
 
-class GrantGetter(Interface):
-    """Register a function as the grant getter.
-    
-    The function accepts `client_id`, `code` and more::
-
-    @oauth.grantgetter
-    def grant(client_id, code):
-    return get_grant(client_id, code)
-    
-    It returns a grant object with at least these information:
-    
-    - delete: A function to delete itself
-    """
+class IClients(IStorage):
+    pass
 
 
-class GrantSetter(Interface):
-    """Register a function to save the grant code.
-
-    The function accepts `client_id`, `code`, `request` and more::
-    
-    @oauth.grantsetter
-    def set_grant(client_id, code, request, *args, **kwargs):
-    save_grant(client_id, code, request.user, request.scopes)
-    """
+class ITokens(IStorage):
+    pass
