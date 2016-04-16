@@ -1,0 +1,2 @@
+class TokenEndpoint(object):
+    pass
