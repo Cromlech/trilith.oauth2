@@ -21,15 +21,12 @@ class OAuth2RequestValidator(RequestValidator):
     :param grantgetter: a function to get grant token
     :param grantsetter: a function to save grant token
     """
-    def __init__(self, clientgetter, tokengetter, grantgetter,
-                 usergetter=None, tokensetter=None, grantsetter=None):
-        self._clientgetter = clientgetter
-        self._tokengetter = tokengetter
-        self._usergetter = usergetter
-        self._tokensetter = tokensetter
-        self._grantgetter = grantgetter
-        self._grantsetter = grantsetter
-
+    def __init__(self, users, clients, tokens, grants):
+        self._users = clientgetter
+        self._clients = clients
+        self._tokens = tokens
+        self._grants = grants
+        
     def client_authentication_required(self, request, *args, **kwargs):
         """Determine if client authentication is required for current request.
 
@@ -44,14 +41,13 @@ class OAuth2RequestValidator(RequestValidator):
         .. _`Section 4.1.3`: http://tools.ietf.org/html/rfc6749#section-4.1.3
         .. _`Section 6`: http://tools.ietf.org/html/rfc6749#section-6
         """
-
         if request.grant_type == 'password':
-            client = self._clientgetter(request.client_id)
-            return (not client) or client.client_type == 'confidential' \
-                    or client.client_secret
+            client = self._clients.get(request.client_id)
+            return client is None or client.client_type == 'confidential' \
+                or client.client_secret
         elif request.grant_type == 'authorization_code':
-            client = self._clientgetter(request.client_id)
-            return (not client) or client.client_type == 'confidential'
+            client = self._clients.get(request.client_id)
+            return client is None or client.client_type == 'confidential'
         return 'Authorization' in request.headers \
                 and request.grant_type == 'refresh_token'
 
@@ -77,15 +73,11 @@ class OAuth2RequestValidator(RequestValidator):
             client_id = request.client_id
             client_secret = request.client_secret
 
-        client = self._clientgetter(client_id)
-        if not client:
-            logger.debug('Authenticate client failed, client not found.')
-            return False
-
-        request.client = client
-
-        if client.client_secret != client_secret:
-            logger.debug('Authenticate client failed, secret not match.')
+        client = self._clients.find(
+            client_id=client_id, client_secret=client_secret)
+        if client is None:
+            logger.debug('Authenticate client failed, '
+                         'client not found or secret not match.')
             return False
 
         logger.debug('Authenticate client success.')
@@ -98,7 +90,7 @@ class OAuth2RequestValidator(RequestValidator):
         :param request: The Request object passed by oauthlib
         """
         logger.debug('Authenticate client %r.', client_id)
-        client = request.client or self._clientgetter(client_id)
+        client = self._clients.get(client_id)
         if not client:
             logger.debug('Authenticate failed, client not found.')
             return False
