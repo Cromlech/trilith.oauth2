@@ -20,7 +20,7 @@ def sized(max):
 
 class IUser(Interface):
 
-    id = ASCIILine(
+    username = ASCIILine(
         title=u'Unique identifier',
         constraint=sized(128),
         required=True)
@@ -78,13 +78,13 @@ class IClient(Interface):
 class IToken(Interface):
 
     type = Choice(
-        title=u'Client type',
+        title=u'Token type',
         values=('Bearer', 'MAC'),
         default='Bearer',
         required=True)
 
     access_token = ASCIILine(
-        title=u'Linked user',
+        title=u'Access token',
         constraint=sized(255),
         required=True)
         
