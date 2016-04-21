@@ -187,9 +187,17 @@ class OAuth2RequestValidator(RequestValidator):
             'Persist authorization code %r for client %r',
             code, client_id
         )
-        import pdb; pdb.set_trace()
         request.client = request.client or self._clients[client_id]
-        self._grant.add(client_id, code, request, *args, **kwargs)
+
+        data = { 
+            'client_id': client_id,
+            'code': code['code'],
+            'user_id': request.user,
+            'redirect_uri': request.redirect_uri,
+            'scopes': request.scopes,
+            }
+    
+        self._grants.add(**data)
         return request.client.default_redirect_uri
 
     def save_bearer_token(self, token, request, *args, **kwargs):
