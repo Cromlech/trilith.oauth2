@@ -405,15 +405,22 @@ class OAuth2RequestValidator(RequestValidator):
             if tok is None:
                 tok = self._tokens.find(refresh_token=token)
 
+        error = None
         if tok is not None:
-            client = self._clients.get(request.client_id)
-            if client is not None and client.client_id == tok.client_id:
-                request.client_id = tok.client_id
-                request.user = tok.user
-                self._tokens.delete(tok)
-                return True
+            if request.client_id is None:
+                error = 'No client_id supplied.'
+            else:
+                client = self._clients.get(request.client_id)
+                if client is not None and client.client_id == tok.client_id:
+                    request.client_id = tok.client_id
+                    request.user = tok.user
+                    self._tokens.delete(tok.id)
+                    return True
+                else:
+                    error = 'Invalid client_id.'
+        else:
+            error = 'Invalid token supplied.'
 
-        msg = 'Invalid token supplied.'
-        logger.debug(msg)
-        request.error_message = msg
+        logger.debug(error)
+        request.error_message = error
         return False
